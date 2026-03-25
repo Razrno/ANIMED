@@ -1418,7 +1418,7 @@ function closeModal() {
   document.getElementById('modal-new').classList.remove('open');
 }
 
-async function createPatient() {
+async async function createPatient() {
   const nom = document.getElementById('new-nom').value.trim().toUpperCase();
   const prenom = document.getElementById('new-prenom').value.trim();
   const ddn = document.getElementById('new-ddn').value;
@@ -1467,7 +1467,7 @@ function confirmDelete(pid) {
 
 function confirmDeletePatient() { confirmDelete(currentPatientId); }
 
-async function deletePatient(pid) {
+async async function deletePatient(pid) {
   const p = db.patients[pid];
   const name = `${p.info.nom} ${p.info.prenom}`;
   delete db.patients[pid];
@@ -1555,7 +1555,7 @@ function loadDossierUI() {
 // ══════════════════════════════════════════
 // IDENTITÉ
 // ══════════════════════════════════════════
-async function saveIdentite() {
+async async function saveIdentite() {
   const p = getP();
   p.info = { ...p.info,
     nom: document.getElementById('id-nom').value.toUpperCase(),
@@ -1582,7 +1582,7 @@ async function saveIdentite() {
 // ══════════════════════════════════════════
 // ANTÉCÉDENTS
 // ══════════════════════════════════════════
-async function saveAntecedents() {
+async async function saveAntecedents() {
   const p = getP();
   p.antecedents = {
     patho: document.getElementById('ant-patho').value,
@@ -1604,7 +1604,7 @@ async function saveAntecedents() {
 // ══════════════════════════════════════════
 // CONSULTATIONS
 // ══════════════════════════════════════════
-function saveConsultation() {
+async function saveConsultation() {
   const p = getP();
   const date = document.getElementById('cons-date').value;
   const motif = document.getElementById('cons-motif').value;
@@ -1655,7 +1655,7 @@ function renderConsultations() {
 // ══════════════════════════════════════════
 // BILAN BIO
 // ══════════════════════════════════════════
-function saveBioBilan() {
+async function saveBioBilan() {
   const p = getP();
   const b = {
     date: document.getElementById('bio-date').value,
@@ -1704,7 +1704,7 @@ function saveBioBilan() {
 // ══════════════════════════════════════════
 // BILAN CARDIO
 // ══════════════════════════════════════════
-function saveCardioBilan() {
+async function saveCardioBilan() {
   const p = getP();
   const b = {
     ecgDate: document.getElementById('card-ecg-date').value,
@@ -1784,7 +1784,7 @@ function updateVizLive() {
   }
 }
 
-function saveConstantes() {
+async function saveConstantes() {
   const p = getP();
   p.constantes = {
     poids: document.getElementById('const-poids').value,
@@ -1808,7 +1808,7 @@ function saveConstantes() {
 // ══════════════════════════════════════════
 // ORDONNANCES
 // ══════════════════════════════════════════
-async function addMed() {
+async async function addMed() {
   const p = getP();
   const nom = document.getElementById('ordo-nom').value.trim();
   if (!nom) { toast('Nom du médicament requis', 'err'); return; }
@@ -1836,7 +1836,7 @@ async function addMed() {
   ['ordo-nom','ordo-dose','ordo-posol','ordo-duree'].forEach(id => { document.getElementById(id).value = ''; });
 }
 
-async function removeMed(id) {
+async async function removeMed(id) {
   const p = getP();
   const med = p.medicaments.find(m => m.id === id);
   p.medicaments = p.medicaments.filter(m => m.id !== id);
@@ -1867,7 +1867,7 @@ function renderMeds() {
 // ══════════════════════════════════════════
 // VACCINS
 // ══════════════════════════════════════════
-async function addVaccin() {
+async async function addVaccin() {
   const p = getP();
   const date = document.getElementById('vacc-date').value;
   if (!date) { toast('Date requise', 'err'); return; }
@@ -1948,7 +1948,7 @@ function loadConfig() {
   document.getElementById('cfg-auto-med').checked = cfg.autoMed;
 }
 
-async function saveConfig() {
+async async function saveConfig() {
   db.config = {
     webhookUrl: document.getElementById('cfg-webhook').value.trim(),
     botName: document.getElementById('cfg-botname').value,
@@ -1979,7 +1979,7 @@ function updateDiscordIndicator() {
   }
 }
 
-async function testWebhook() {
+async async function testWebhook() {
   const url = document.getElementById('cfg-webhook').value.trim();
   if (!url) { toast('Entrez une URL webhook', 'err'); return; }
   db.config.webhookUrl = url;
@@ -1994,7 +1994,7 @@ async function testWebhook() {
 // ══════════════════════════════════════════
 // DISCORD
 // ══════════════════════════════════════════
-async function sendDiscord(title, fields = [], color = 0x3d9eff) {
+async async function sendDiscord(title, fields = [], color = 0x3d9eff) {
   const url = db.config.webhookUrl;
   if (!url) { log('WARN', 'Webhook Discord non configuré'); return; }
   const payload = {
@@ -2120,7 +2120,7 @@ function openImport() {
 // ══════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════
-async function refreshDB() {
+async async function refreshDB() {
   showSyncBadge('loading');
   await loadDB();
   renderPatientGrid();
@@ -2128,7 +2128,7 @@ async function refreshDB() {
   log('INFO', `Actualisation Supabase — ${Object.keys(db.patients).length} patients chargés`);
 }
 
-async function init() {
+async async function init() {
   await loadDB();
   renderPatientGrid();
   updateDiscordIndicator();
