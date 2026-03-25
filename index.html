@@ -628,6 +628,10 @@ td.primary { color: var(--t1); font-weight: 600; }
     <span class="bc-item active">Base de données</span>
   </div>
   <div class="tb-right">
+    <div class="tb-stat" id="sync-indicator">
+      <div class="pulse pulse-ylw" id="sync-badge"></div>
+      <span id="sync-label">Chargement...</span>
+    </div>
     <div class="tb-stat">
       <div class="pulse pulse-grn" id="db-pulse"></div>
       <span id="db-count">0 patients</span>
@@ -656,6 +660,7 @@ td.primary { color: var(--t1); font-weight: 600; }
           <span class="search-icon">🔍</span>
           <input class="search-input" type="text" id="search-input" placeholder="Rechercher un patient..." oninput="filterPatients()">
         </div>
+        <button class="btn btn-ghost" onclick="refreshDB()">🔄 Actualiser</button>
         <button class="btn btn-ghost" onclick="openImport()">⬆ Importer</button>
         <button class="btn btn-ghost" onclick="exportAll()">⬇ Exporter</button>
         <button class="btn btn-primary" onclick="openNewPatient()">+ Nouveau patient</button>
@@ -1105,16 +1110,112 @@ td.primary { color: var(--t1); font-weight: 600; }
 // ══════════════════════════════════════════
 // DATABASE
 // ══════════════════════════════════════════
-const DB_KEY = 'animed_db_v2';
+// ══════════════════════════════════════════
+// SUPABASE CONFIG
+// ══════════════════════════════════════════
+const SUPABASE_URL = 'https://ebcsyaqzfrfgqddjuano.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImViY3N5YXF6ZnJmZ3FkZGp1YW5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ0NzgyNzMsImV4cCI6MjA5MDA1NDI3M30.AiDxYMQPNT8OkuEGEmPh_wVzZWDndlJxpYkxLdfsWLU';
+
+const supa = {
+  async query(method, table, body = null, match = null) {
+    let url = `${SUPABASE_URL}/rest/v1/${table}`;
+    if (match) url += `?${match}`;
+    const opts = {
+      method,
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': method === 'POST' ? 'resolution=merge-duplicates,return=representation' : 'return=representation'
+      }
+    };
+    if (body) opts.body = JSON.stringify(body);
+    const res = await fetch(url, opts);
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Supabase ${method} ${table}: ${res.status} ${err}`);
+    }
+    const text = await res.text();
+    return text ? JSON.parse(text) : null;
+  },
+
+  async getAll(table) {
+    return await this.query('GET', table);
+  },
+
+  async upsert(table, row) {
+    return await this.query('POST', table, row);
+  },
+
+  async delete(table, id) {
+    return await this.query('DELETE', table, null, `id=eq.${id}`);
+  }
+};
 
 let db = { patients: {}, config: { webhookUrl:'', botName:'ANIMED', avatarUrl:'', autoCons:false, autoBio:false, autoMed:false }, logs: { sent:0, ok:0, err:0, last:null } };
 let currentPatientId = null;
 
-function loadDB() {
-  try { const s = localStorage.getItem(DB_KEY); if (s) db = { ...db, ...JSON.parse(s) }; } catch(e){}
+function showSyncBadge(state) {
+  const el = document.getElementById('sync-badge');
+  const label = document.getElementById('sync-label');
+  if (!el) return;
+  const states = {
+    loading: ['pulse-ylw', 'Chargement...'],
+    saving:  ['pulse-ylw', 'Sauvegarde...'],
+    ok:      ['pulse-grn', 'Synchronisé ✓'],
+    err:     ['pulse-red', 'Erreur sync']
+  };
+  const [cls, txt] = states[state] || ['pulse-ylw', '...'];
+  el.className = `pulse ${cls}`;
+  label.textContent = txt;
 }
 
-function saveDB() { localStorage.setItem(DB_KEY, JSON.stringify(db)); }
+// ── CHARGEMENT depuis Supabase ──
+async function loadDB() {
+  try {
+    showSyncBadge('loading');
+    // Charger patients
+    const rows = await supa.getAll('patients');
+    db.patients = {};
+    if (rows) rows.forEach(r => { db.patients[r.id] = r.data; });
+    // Charger config
+    const cfgRows = await supa.getAll('config');
+    if (cfgRows && cfgRows.length > 0) db.config = { ...db.config, ...cfgRows[0].data };
+    showSyncBadge('ok');
+  } catch(e) {
+    console.error('loadDB error:', e);
+    showSyncBadge('err');
+    log('ERROR', `Erreur chargement Supabase: ${e.message}`);
+  }
+}
+
+// ── SAUVEGARDE config dans Supabase ──
+async function saveDB() {
+  try {
+    showSyncBadge('saving');
+    await supa.upsert('config', { id: 'global', data: db.config, updated_at: new Date().toISOString() });
+    showSyncBadge('ok');
+  } catch(e) {
+    console.error('saveDB error:', e);
+    showSyncBadge('err');
+    log('ERROR', `Erreur sauvegarde config: ${e.message}`);
+  }
+}
+
+// ── SAUVEGARDE d'un patient dans Supabase ──
+async function saveP() {
+  const p = getP();
+  if (!p) return;
+  try {
+    showSyncBadge('saving');
+    await supa.upsert('patients', { id: p.id, data: p, updated_at: new Date().toISOString() });
+    showSyncBadge('ok');
+  } catch(e) {
+    console.error('saveP error:', e);
+    showSyncBadge('err');
+    log('ERROR', `Erreur sauvegarde patient: ${e.message}`);
+  }
+}
 
 // Blank patient structure
 function blankPatient(id) {
@@ -1128,7 +1229,7 @@ function blankPatient(id) {
 }
 
 function getP() { return db.patients[currentPatientId]; }
-function saveP() { saveDB(); }
+async function saveP() { await saveDB(); }
 
 // ══════════════════════════════════════════
 // TOAST
@@ -1304,7 +1405,7 @@ function closeModal() {
   document.getElementById('modal-new').classList.remove('open');
 }
 
-function createPatient() {
+async function createPatient() {
   const nom = document.getElementById('new-nom').value.trim().toUpperCase();
   const prenom = document.getElementById('new-prenom').value.trim();
   const ddn = document.getElementById('new-ddn').value;
@@ -1320,7 +1421,11 @@ function createPatient() {
     allergy: document.getElementById('new-allergy').value
   };
   db.patients[id] = patient;
-  saveDB();
+  try {
+    showSyncBadge('saving');
+    await supa.upsert('patients', { id: patient.id, data: patient, updated_at: new Date().toISOString() });
+    showSyncBadge('ok');
+  } catch(e) { showSyncBadge('err'); log('ERROR', `Erreur création patient: ${e.message}`); }
   closeModal();
   renderPatientGrid();
   toast(`Dossier créé — ${nom} ${prenom}`);
@@ -1349,11 +1454,15 @@ function confirmDelete(pid) {
 
 function confirmDeletePatient() { confirmDelete(currentPatientId); }
 
-function deletePatient(pid) {
+async function deletePatient(pid) {
   const p = db.patients[pid];
   const name = `${p.info.nom} ${p.info.prenom}`;
   delete db.patients[pid];
-  saveDB();
+  try {
+    showSyncBadge('saving');
+    await supa.delete('patients', pid);
+    showSyncBadge('ok');
+  } catch(e) { showSyncBadge('err'); log('ERROR', `Erreur suppression: ${e.message}`); }
   if (currentPatientId === pid) backToList();
   else renderPatientGrid();
   toast(`Dossier supprimé — ${name}`, 'err');
@@ -1433,7 +1542,7 @@ function loadDossierUI() {
 // ══════════════════════════════════════════
 // IDENTITÉ
 // ══════════════════════════════════════════
-function saveIdentite() {
+async function saveIdentite() {
   const p = getP();
   p.info = { ...p.info,
     nom: document.getElementById('id-nom').value.toUpperCase(),
@@ -1452,7 +1561,7 @@ function saveIdentite() {
     contactTel: document.getElementById('id-contact-tel').value,
     medecin: document.getElementById('id-medecin').value
   };
-  saveP(); loadDossierUI();
+  await saveP(); loadDossierUI();
   toast('Identité sauvegardée !');
   log('SUCCESS', `Identité mise à jour — ${p.info.nom} ${p.info.prenom}`);
 }
@@ -1460,7 +1569,7 @@ function saveIdentite() {
 // ══════════════════════════════════════════
 // ANTÉCÉDENTS
 // ══════════════════════════════════════════
-function saveAntecedents() {
+async function saveAntecedents() {
   const p = getP();
   p.antecedents = {
     patho: document.getElementById('ant-patho').value,
@@ -1475,7 +1584,7 @@ function saveAntecedents() {
     alcool: document.getElementById('ant-alcool').value,
     sport: document.getElementById('ant-sport').value
   };
-  saveP(); toast('Antécédents sauvegardés !');
+  await saveP(); toast('Antécédents sauvegardés !');
   log('SUCCESS', 'Antécédents médicaux mis à jour');
 }
 
@@ -1497,7 +1606,7 @@ function saveConsultation() {
     rdv: document.getElementById('cons-rdv').value
   };
   p.consultations.unshift(cons);
-  saveP(); renderConsultations(); updateDashboard();
+  await saveP(); renderConsultations(); updateDashboard();
   toast('Consultation enregistrée !');
   log('SUCCESS', `Consultation — ${date} — ${motif}`);
 
@@ -1561,7 +1670,7 @@ function saveBioBilan() {
   };
   if (b.glyc) { p.constantes = p.constantes || {}; p.constantes.glyc = b.glyc; }
   p.bilanBio.unshift(b);
-  saveP(); updateDashboard();
+  await saveP(); updateDashboard();
   toast('Bilan biologique sauvegardé !');
   log('SUCCESS', `Bilan bio enregistré — ${b.date||'date inconnue'} — labo: ${b.labo||'—'}`);
 
@@ -1599,7 +1708,7 @@ function saveCardioBilan() {
     echoObs: document.getElementById('card-echo-obs').value
   };
   p.bilanCardio.unshift(b);
-  saveP();
+  await saveP();
   toast('Bilan cardiologique sauvegardé !');
   log('SUCCESS', `Bilan cardio enregistré — Rythme: ${b.rythme} — FEVG: ${b.fevg||'—'}%`);
 
@@ -1677,7 +1786,7 @@ function saveConstantes() {
     fr: document.getElementById('const-fr').value,
     glyc: p.constantes ? p.constantes.glyc : ''
   };
-  saveP(); updateDashboard(); updateVizLive();
+  await saveP(); updateDashboard(); updateVizLive();
   const c = p.constantes;
   toast('Constantes sauvegardées !');
   log('SUCCESS', `Constantes — TA: ${c.sys}/${c.dia} mmHg, FC: ${c.fc} bpm, SpO2: ${c.spo2}%, T: ${c.temp}°C`);
@@ -1686,7 +1795,7 @@ function saveConstantes() {
 // ══════════════════════════════════════════
 // ORDONNANCES
 // ══════════════════════════════════════════
-function addMed() {
+async function addMed() {
   const p = getP();
   const nom = document.getElementById('ordo-nom').value.trim();
   if (!nom) { toast('Nom du médicament requis', 'err'); return; }
@@ -1699,7 +1808,7 @@ function addMed() {
     date: document.getElementById('ordo-date').value
   };
   p.medicaments.push(med);
-  saveP(); renderMeds(); updateDashboard();
+  await saveP(); renderMeds(); updateDashboard();
   toast(`${nom} ajouté !`);
   log('INFO', `Prescription — ${nom} ${med.dose} — ${med.posol}`);
 
@@ -1714,11 +1823,11 @@ function addMed() {
   ['ordo-nom','ordo-dose','ordo-posol','ordo-duree'].forEach(id => { document.getElementById(id).value = ''; });
 }
 
-function removeMed(id) {
+async function removeMed(id) {
   const p = getP();
   const med = p.medicaments.find(m => m.id === id);
   p.medicaments = p.medicaments.filter(m => m.id !== id);
-  saveP(); renderMeds(); updateDashboard();
+  await saveP(); renderMeds(); updateDashboard();
   toast('Médicament retiré', 'info');
   if (med) log('WARN', `Prescription supprimée — ${med.nom}`);
 }
@@ -1745,7 +1854,7 @@ function renderMeds() {
 // ══════════════════════════════════════════
 // VACCINS
 // ══════════════════════════════════════════
-function addVaccin() {
+async function addVaccin() {
   const p = getP();
   const date = document.getElementById('vacc-date').value;
   if (!date) { toast('Date requise', 'err'); return; }
@@ -1755,7 +1864,7 @@ function addVaccin() {
     rappel: document.getElementById('vacc-rappel').value
   };
   p.vaccins.push(v);
-  saveP(); renderVaccins();
+  await saveP(); renderVaccins();
   toast(`Vaccination enregistrée : ${v.nom}`);
   log('INFO', `Vaccin — ${v.nom} — ${date}`);
 }
@@ -1826,7 +1935,7 @@ function loadConfig() {
   document.getElementById('cfg-auto-med').checked = cfg.autoMed;
 }
 
-function saveConfig() {
+async function saveConfig() {
   db.config = {
     webhookUrl: document.getElementById('cfg-webhook').value.trim(),
     botName: document.getElementById('cfg-botname').value,
@@ -1835,7 +1944,12 @@ function saveConfig() {
     autoBio: document.getElementById('cfg-auto-bio').checked,
     autoMed: document.getElementById('cfg-auto-med').checked
   };
-  saveDB(); updateDiscordIndicator();
+  try {
+    showSyncBadge('saving');
+    await supa.upsert('config', { id: 'global', data: db.config, updated_at: new Date().toISOString() });
+    showSyncBadge('ok');
+  } catch(e) { showSyncBadge('err'); }
+  updateDiscordIndicator();
   toast('Configuration sauvegardée !');
   log('INFO', `Config sauvegardée — Webhook: ${db.config.webhookUrl ? '✅ configuré' : '❌ vide'}`);
 }
@@ -1961,7 +2075,7 @@ function openImport() {
   input.onchange = e => {
     const file = e.target.files[0];
     const reader = new FileReader();
-    reader.onload = ev => {
+    reader.onload = async ev => {
       try {
         const data = JSON.parse(ev.target.result);
         // Detect if it's a full DB or a single patient
@@ -1975,7 +2089,11 @@ function openImport() {
           toast(`Dossier importé — ${data.info.nom||'?'} ${data.info.prenom||''}`);
           log('SUCCESS', `Import dossier — ${data.id}`);
         }
-        saveDB(); renderPatientGrid();
+        // Sauvegarder chaque patient importé dans Supabase
+        for (const pid of Object.keys(db.patients)) {
+          await supa.upsert('patients', { id: pid, data: db.patients[pid], updated_at: new Date().toISOString() });
+        }
+        renderPatientGrid();
       } catch(err) {
         toast('Erreur import JSON', 'err');
         log('ERROR', `Import échoué: ${err.message}`);
@@ -1989,12 +2107,32 @@ function openImport() {
 // ══════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════
-loadDB();
-renderPatientGrid();
-updateDiscordIndicator();
-log('INFO', `ANIMED v2 initialisé — ${Object.keys(db.patients).length} patients en base`);
-if (db.config.webhookUrl) log('SUCCESS', 'Webhook Discord configuré');
-else log('WARN', 'Webhook Discord non configuré — rendez-vous dans ⚙️ Configuration');
+async function refreshDB() {
+  showSyncBadge('loading');
+  await loadDB();
+  renderPatientGrid();
+  toast(`Base actualisée — ${Object.keys(db.patients).length} patients`, 'info');
+  log('INFO', `Actualisation Supabase — ${Object.keys(db.patients).length} patients chargés`);
+}
+
+async function init() {
+  await loadDB();
+  renderPatientGrid();
+  updateDiscordIndicator();
+  log('INFO', `ANIMED v2 initialisé — ${Object.keys(db.patients).length} patients en base`);
+  if (db.config.webhookUrl) log('SUCCESS', 'Webhook Discord configuré');
+  else log('WARN', 'Webhook Discord non configuré — rendez-vous dans ⚙️ Configuration');
+
+  // Auto-refresh Supabase toutes les 30 secondes
+  setInterval(async () => {
+    if (!currentPatientId) {
+      await loadDB();
+      renderPatientGrid();
+    }
+  }, 30000);
+}
+
+init();
 </script>
 </body>
 </html>
