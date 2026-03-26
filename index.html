@@ -1443,7 +1443,7 @@ async function createPatient() {
 }
 
 let confirmCallback = null;
-function confirmDelete(pid) {
+async function confirmDelete(pid) {
   const p = db.patients[pid];
   document.getElementById('conf-title').textContent = 'Supprimer ce dossier ?';
   document.getElementById('conf-msg').textContent = `${p.info.nom} ${p.info.prenom} — ${pid}\nCette action est irréversible.`;
@@ -1451,7 +1451,7 @@ function confirmDelete(pid) {
   document.getElementById('confirm-dlg').classList.add('open');
 }
 
-function confirmDeletePatient() { confirmDelete(currentPatientId); }
+async function confirmDeletePatient() { confirmDelete(currentPatientId); }
 
 async function deletePatient(pid) {
   const p = db.patients[pid];
@@ -1590,7 +1590,7 @@ async function saveAntecedents() {
 // ══════════════════════════════════════════
 // CONSULTATIONS
 // ══════════════════════════════════════════
-function saveConsultation() {
+async function saveConsultation() {
   const p = getP();
   const date = document.getElementById('cons-date').value;
   const motif = document.getElementById('cons-motif').value;
@@ -1641,7 +1641,7 @@ function renderConsultations() {
 // ══════════════════════════════════════════
 // BILAN BIO
 // ══════════════════════════════════════════
-function saveBioBilan() {
+async function saveBioBilan() {
   const p = getP();
   const b = {
     date: document.getElementById('bio-date').value,
@@ -1690,7 +1690,7 @@ function saveBioBilan() {
 // ══════════════════════════════════════════
 // BILAN CARDIO
 // ══════════════════════════════════════════
-function saveCardioBilan() {
+async function saveCardioBilan() {
   const p = getP();
   const b = {
     ecgDate: document.getElementById('card-ecg-date').value,
@@ -1770,7 +1770,7 @@ function updateVizLive() {
   }
 }
 
-function saveConstantes() {
+async function saveConstantes() {
   const p = getP();
   p.constantes = {
     poids: document.getElementById('const-poids').value,
@@ -2068,7 +2068,7 @@ function exportAll() {
   log('INFO', `Export complet — ${Object.keys(db.patients).length} patients`);
 }
 
-function openImport() {
+async function openImport() {
   const input = document.createElement('input');
   input.type = 'file'; input.accept = '.json';
   input.onchange = e => {
