@@ -1,10 +1,11 @@
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ANIMED – Agence Nationale d'Information Médicale d'Urgence</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%233d9eff'/><text y='22' x='6' font-size='18'>🏥</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -1106,7 +1107,7 @@ td.primary { color: var(--t1); font-weight: 600; }
 
 <div id="toast-zone"></div>
 
-<script type="module">
+<script>
 // ══════════════════════════════════════════
 // DATABASE
 // ══════════════════════════════════════════
@@ -1229,6 +1230,7 @@ function blankPatient(id) {
 }
 
 function getP() { return db.patients[currentPatientId]; }
+async function saveP() { await saveDB(); }
 
 // ══════════════════════════════════════════
 // TOAST
@@ -1443,7 +1445,7 @@ async function createPatient() {
 }
 
 let confirmCallback = null;
-async function confirmDelete(pid) {
+function confirmDelete(pid) {
   const p = db.patients[pid];
   document.getElementById('conf-title').textContent = 'Supprimer ce dossier ?';
   document.getElementById('conf-msg').textContent = `${p.info.nom} ${p.info.prenom} — ${pid}\nCette action est irréversible.`;
@@ -1451,7 +1453,7 @@ async function confirmDelete(pid) {
   document.getElementById('confirm-dlg').classList.add('open');
 }
 
-async function confirmDeletePatient() { confirmDelete(currentPatientId); }
+function confirmDeletePatient() { confirmDelete(currentPatientId); }
 
 async function deletePatient(pid) {
   const p = db.patients[pid];
@@ -1590,7 +1592,7 @@ async function saveAntecedents() {
 // ══════════════════════════════════════════
 // CONSULTATIONS
 // ══════════════════════════════════════════
-async function saveConsultation() {
+function saveConsultation() {
   const p = getP();
   const date = document.getElementById('cons-date').value;
   const motif = document.getElementById('cons-motif').value;
@@ -1641,7 +1643,7 @@ function renderConsultations() {
 // ══════════════════════════════════════════
 // BILAN BIO
 // ══════════════════════════════════════════
-async function saveBioBilan() {
+function saveBioBilan() {
   const p = getP();
   const b = {
     date: document.getElementById('bio-date').value,
@@ -1690,7 +1692,7 @@ async function saveBioBilan() {
 // ══════════════════════════════════════════
 // BILAN CARDIO
 // ══════════════════════════════════════════
-async function saveCardioBilan() {
+function saveCardioBilan() {
   const p = getP();
   const b = {
     ecgDate: document.getElementById('card-ecg-date').value,
@@ -1770,7 +1772,7 @@ function updateVizLive() {
   }
 }
 
-async function saveConstantes() {
+function saveConstantes() {
   const p = getP();
   p.constantes = {
     poids: document.getElementById('const-poids').value,
@@ -2068,7 +2070,7 @@ function exportAll() {
   log('INFO', `Export complet — ${Object.keys(db.patients).length} patients`);
 }
 
-async function openImport() {
+function openImport() {
   const input = document.createElement('input');
   input.type = 'file'; input.accept = '.json';
   input.onchange = e => {
@@ -2132,23 +2134,6 @@ async function init() {
 }
 
 init();
-
-// ── Exposition des fonctions globales (requis avec type="module") ──
-Object.assign(window, {
-  showView, backToList, openDossier, showTab, goConfig,
-  openNewPatient, closeModal, createPatient,
-  exportPatient, exportPatientById, exportAll, openImport,
-  saveConfig, testWebhook, sendSummary,
-  refreshDB, clearLogs,
-  toast, log,
-  sendDiscord,
-  closeConfirm, confirmDelete, confirmDeletePatient, deletePatient,
-  addMed, removeMed, addVaccin,
-  saveConstantes, saveConsultation, clearConsultForm,
-  saveIdentite, saveAntecedents, saveBioBilan, saveCardioBilan,
-  liveTA, liveFC,
-  filterPatients
-});
 </script>
 </body>
 </html>
