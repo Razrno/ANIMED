@@ -3110,7 +3110,7 @@ async function init() {
   }, 30000);
 }
 
-init();
+// init() est appelé après connexion dans onLoginSuccess()
 
 
 
@@ -3873,27 +3873,31 @@ function doLogout() {
   currentUser = null;
   portalPatient = null;
   patientData = null;
-  // Cacher TOUT
-  document.getElementById('app').style.display = 'none';
-  document.getElementById('topbar').style.display = 'none';
-  document.getElementById('medecin-shell').style.display = 'none';
-  document.getElementById('patient-shell').style.display = 'none';
-  document.getElementById('tb-user-badge').style.display = 'none';
-  document.getElementById('tb-logout-btn').style.display = 'none';
-  document.getElementById('login-error').classList.remove('show');
-  document.getElementById('login-password').value = '';
-  document.getElementById('login-username').value = '';
-  selectedProfile = null;
-  document.getElementById('login-fields-wrap').classList.remove('show');
-  document.getElementById('profile-pro').className = 'login-profile-btn';
-  document.getElementById('profile-patient').className = 'login-profile-btn';
-  const lb = document.getElementById('login-btn');
-  lb.style.background = ''; lb.style.color = ''; lb.textContent = 'Se connecter →';
+
+  // Cacher tout l'app
+  const hide = id => { const el = document.getElementById(id); if(el) el.style.display = 'none'; };
+  hide('app');
+  hide('topbar');
+  hide('medecin-shell');
+  hide('patient-shell');
+  hide('tb-user-badge');
+  hide('tb-logout-btn');
+
+  // Reset champs login
+  const usr = document.getElementById('login-username');
+  const pwd = document.getElementById('login-password');
+  const err = document.getElementById('login-error');
+  if(usr) usr.value = '';
+  if(pwd) pwd.value = '';
+  if(err) { err.style.display = 'none'; err.classList.remove('show'); }
+
   // Cacher les éléments admin
   document.querySelectorAll('.admin-only').forEach(el => el.style.setProperty('display','none','important'));
+
   // Reset db
   db = { patients: {}, config: { webhookUrl:'', botName:'ANIMED', avatarUrl:'', autoCons:false, autoBio:false, autoMed:false }, logs: { sent:0, ok:0, err:0, last:null } };
-  showView('view-list');
+
+  // Afficher l'écran de connexion
   document.getElementById('login-screen').style.display = 'flex';
 }
 
