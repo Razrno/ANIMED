@@ -1106,7 +1106,7 @@ td.primary { color: var(--t1); font-weight: 600; }
 
 <div id="toast-zone"></div>
 
-<script>
+<script type="module">
 // ══════════════════════════════════════════
 // DATABASE
 // ══════════════════════════════════════════
@@ -1130,21 +1130,10 @@ const supa = {
       }
     };
     if (body) opts.body = JSON.stringify(body);
-    let res;
-    try {
-      res = await fetch(url, opts);
-    } catch(netErr) {
-      throw new Error(`Réseau inaccessible — vérifiez votre connexion internet`);
-    }
+    const res = await fetch(url, opts);
     if (!res.ok) {
       const err = await res.text();
-      let parsed;
-      try { parsed = JSON.parse(err); } catch(e) { parsed = { message: err }; }
-      const msg = parsed.message || parsed.hint || err;
-      if (res.status === 401) throw new Error(`Clé API invalide (401)`);
-      if (res.status === 403) throw new Error(`Accès refusé — politiques RLS manquantes (403)`);
-      if (res.status === 404) throw new Error(`Table "${table}" introuvable (404) — créez-la dans Supabase`);
-      throw new Error(`${res.status}: ${msg}`);
+      throw new Error(`Supabase ${method} ${table}: ${res.status} ${err}`);
     }
     const text = await res.text();
     return text ? JSON.parse(text) : null;
@@ -1193,12 +1182,10 @@ async function loadDB() {
     const cfgRows = await supa.getAll('config');
     if (cfgRows && cfgRows.length > 0) db.config = { ...db.config, ...cfgRows[0].data };
     showSyncBadge('ok');
-    log('SUCCESS', `Supabase connecté — ${Object.keys(db.patients).length} patients chargés`);
   } catch(e) {
     console.error('loadDB error:', e);
     showSyncBadge('err');
-    log('ERROR', `Erreur Supabase: ${e.message}`);
-    toast(`Erreur connexion: ${e.message}`, 'err');
+    log('ERROR', `Erreur chargement Supabase: ${e.message}`);
   }
 }
 
@@ -1418,7 +1405,7 @@ function closeModal() {
   document.getElementById('modal-new').classList.remove('open');
 }
 
-async async function createPatient() {
+async function createPatient() {
   const nom = document.getElementById('new-nom').value.trim().toUpperCase();
   const prenom = document.getElementById('new-prenom').value.trim();
   const ddn = document.getElementById('new-ddn').value;
@@ -1467,7 +1454,7 @@ function confirmDelete(pid) {
 
 function confirmDeletePatient() { confirmDelete(currentPatientId); }
 
-async async function deletePatient(pid) {
+async function deletePatient(pid) {
   const p = db.patients[pid];
   const name = `${p.info.nom} ${p.info.prenom}`;
   delete db.patients[pid];
@@ -1555,7 +1542,7 @@ function loadDossierUI() {
 // ══════════════════════════════════════════
 // IDENTITÉ
 // ══════════════════════════════════════════
-async async function saveIdentite() {
+async function saveIdentite() {
   const p = getP();
   p.info = { ...p.info,
     nom: document.getElementById('id-nom').value.toUpperCase(),
@@ -1582,7 +1569,7 @@ async async function saveIdentite() {
 // ══════════════════════════════════════════
 // ANTÉCÉDENTS
 // ══════════════════════════════════════════
-async async function saveAntecedents() {
+async function saveAntecedents() {
   const p = getP();
   p.antecedents = {
     patho: document.getElementById('ant-patho').value,
@@ -1604,7 +1591,7 @@ async async function saveAntecedents() {
 // ══════════════════════════════════════════
 // CONSULTATIONS
 // ══════════════════════════════════════════
-async function saveConsultation() {
+function saveConsultation() {
   const p = getP();
   const date = document.getElementById('cons-date').value;
   const motif = document.getElementById('cons-motif').value;
@@ -1655,7 +1642,7 @@ function renderConsultations() {
 // ══════════════════════════════════════════
 // BILAN BIO
 // ══════════════════════════════════════════
-async function saveBioBilan() {
+function saveBioBilan() {
   const p = getP();
   const b = {
     date: document.getElementById('bio-date').value,
@@ -1704,7 +1691,7 @@ async function saveBioBilan() {
 // ══════════════════════════════════════════
 // BILAN CARDIO
 // ══════════════════════════════════════════
-async function saveCardioBilan() {
+function saveCardioBilan() {
   const p = getP();
   const b = {
     ecgDate: document.getElementById('card-ecg-date').value,
@@ -1784,7 +1771,7 @@ function updateVizLive() {
   }
 }
 
-async function saveConstantes() {
+function saveConstantes() {
   const p = getP();
   p.constantes = {
     poids: document.getElementById('const-poids').value,
@@ -1808,7 +1795,7 @@ async function saveConstantes() {
 // ══════════════════════════════════════════
 // ORDONNANCES
 // ══════════════════════════════════════════
-async async function addMed() {
+async function addMed() {
   const p = getP();
   const nom = document.getElementById('ordo-nom').value.trim();
   if (!nom) { toast('Nom du médicament requis', 'err'); return; }
@@ -1836,7 +1823,7 @@ async async function addMed() {
   ['ordo-nom','ordo-dose','ordo-posol','ordo-duree'].forEach(id => { document.getElementById(id).value = ''; });
 }
 
-async async function removeMed(id) {
+async function removeMed(id) {
   const p = getP();
   const med = p.medicaments.find(m => m.id === id);
   p.medicaments = p.medicaments.filter(m => m.id !== id);
@@ -1867,7 +1854,7 @@ function renderMeds() {
 // ══════════════════════════════════════════
 // VACCINS
 // ══════════════════════════════════════════
-async async function addVaccin() {
+async function addVaccin() {
   const p = getP();
   const date = document.getElementById('vacc-date').value;
   if (!date) { toast('Date requise', 'err'); return; }
@@ -1948,7 +1935,7 @@ function loadConfig() {
   document.getElementById('cfg-auto-med').checked = cfg.autoMed;
 }
 
-async async function saveConfig() {
+async function saveConfig() {
   db.config = {
     webhookUrl: document.getElementById('cfg-webhook').value.trim(),
     botName: document.getElementById('cfg-botname').value,
@@ -1979,7 +1966,7 @@ function updateDiscordIndicator() {
   }
 }
 
-async async function testWebhook() {
+async function testWebhook() {
   const url = document.getElementById('cfg-webhook').value.trim();
   if (!url) { toast('Entrez une URL webhook', 'err'); return; }
   db.config.webhookUrl = url;
@@ -1994,7 +1981,7 @@ async async function testWebhook() {
 // ══════════════════════════════════════════
 // DISCORD
 // ══════════════════════════════════════════
-async async function sendDiscord(title, fields = [], color = 0x3d9eff) {
+async function sendDiscord(title, fields = [], color = 0x3d9eff) {
   const url = db.config.webhookUrl;
   if (!url) { log('WARN', 'Webhook Discord non configuré'); return; }
   const payload = {
@@ -2120,7 +2107,7 @@ function openImport() {
 // ══════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════
-async async function refreshDB() {
+async function refreshDB() {
   showSyncBadge('loading');
   await loadDB();
   renderPatientGrid();
@@ -2128,7 +2115,7 @@ async async function refreshDB() {
   log('INFO', `Actualisation Supabase — ${Object.keys(db.patients).length} patients chargés`);
 }
 
-async async function init() {
+async function init() {
   await loadDB();
   renderPatientGrid();
   updateDiscordIndicator();
@@ -2146,6 +2133,23 @@ async async function init() {
 }
 
 init();
+
+// ── Exposition des fonctions globales (requis avec type="module") ──
+Object.assign(window, {
+  showView, backToList, openDossier, showTab, goConfig,
+  openNewPatient, closeModal, createPatient,
+  exportPatient, exportPatientById, exportAll, openImport,
+  saveConfig, testWebhook, sendSummary,
+  refreshDB, clearLogs,
+  toast, log,
+  sendDiscord,
+  closeConfirm, confirmDelete, confirmDeletePatient, deletePatient,
+  addMed, removeMed, addVaccin,
+  saveConstantes, saveConsultation, clearConsultForm,
+  saveIdentite, saveAntecedents, saveBioBilan, saveCardioBilan,
+  liveTA, liveFC,
+  filterPatients
+});
 </script>
 </body>
 </html>
