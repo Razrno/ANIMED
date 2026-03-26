@@ -69,7 +69,7 @@ body::before {
   background: rgba(8,11,18,.95);
   backdrop-filter: blur(24px);
   border-bottom: 1px solid var(--b1);
-  display: flex;
+  display: none;
   align-items: center;
   padding: 0 24px;
   gap: 16px;
@@ -126,7 +126,7 @@ body::before {
 
 /* ── VIEWS ── */
 #app {
-  display: flex; flex: 1; overflow: hidden;
+  display: none; flex: 1; overflow: hidden;
   position: relative; z-index: 1;
 }
 
@@ -1839,7 +1839,7 @@ td.primary { color: var(--t1); font-weight: 600; }
 <!-- ═══════════════════════════════════════
      SHELL MÉDECIN
 ═══════════════════════════════════════ -->
-<div id="medecin-shell">
+<div id="medecin-shell" style="display:none">
 
   <!-- Topbar médecin -->
   <div class="med-topbar">
@@ -1947,7 +1947,7 @@ td.primary { color: var(--t1); font-weight: 600; }
 <!-- ═══════════════════════════════════════
      SHELL PATIENT
 ═══════════════════════════════════════ -->
-<div id="patient-shell">
+<div id="patient-shell" style="display:none">
 
   <!-- Topbar patient -->
   <div class="pat-topbar">
@@ -2261,7 +2261,7 @@ function showView(id) {
 function backToList() {
   currentPatientId = null;
   if (currentUser && currentUser.role === 'medecin') {
-    document.getElementById('medecin-shell').classList.add('active');
+    document.getElementById('medecin-shell').style.display = 'flex';
     showView('view-list');
     renderMedDashboard();
   } else {
@@ -3144,7 +3144,7 @@ function showMedView(id) {
 }
 
 function initMedecinShell() {
-  document.getElementById('medecin-shell').classList.add('active');
+  document.getElementById('medecin-shell').style.display = 'flex';
   const av = currentUser.displayName.charAt(0).toUpperCase();
   document.getElementById('med-user-av').textContent = av;
   document.getElementById('med-user-name').textContent = currentUser.displayName;
@@ -3300,11 +3300,11 @@ async function cancelRdv(pid, createdAt) {
 
 function closeMedecinShell() {
   // Quand on ouvre un dossier depuis l'espace médecin, on cache le shell
-  document.getElementById('medecin-shell').classList.remove('active');
+  document.getElementById('medecin-shell').style.display = 'none';
 }
 
 function returnToMedecinShell() {
-  document.getElementById('medecin-shell').classList.add('active');
+  document.getElementById('medecin-shell').style.display = 'flex';
   showView('view-list');
   renderMedDashboard();
 }
@@ -3322,7 +3322,7 @@ function showPatView(id, btn) {
 }
 
 async function initPatientShell() {
-  document.getElementById('patient-shell').classList.add('active');
+  document.getElementById('patient-shell').style.display = 'flex';
   const av = currentUser.displayName.charAt(0).toUpperCase();
   document.getElementById('pat-user-av').textContent = av;
   document.getElementById('pat-user-name').textContent = currentUser.displayName;
@@ -3853,11 +3853,13 @@ async function doLogin() {
 }
 
 async function onLoginSuccess() {
+  // Masquer l'écran de connexion
   document.getElementById('login-screen').style.display = 'none';
 
   if (currentUser.role === 'admin') {
-    // Admin : topbar classique, accès total
-    document.getElementById('topbar').style.display = '';
+    // Admin : afficher topbar + app
+    document.getElementById('topbar').style.display = 'flex';
+    document.getElementById('app').style.display = 'flex';
     document.getElementById('tb-user-badge').style.display = 'flex';
     document.getElementById('tb-logout-btn').style.display = '';
     document.getElementById('tb-user-initial').textContent = currentUser.displayName.charAt(0).toUpperCase();
@@ -3867,14 +3869,18 @@ async function onLoginSuccess() {
     await init();
 
   } else if (currentUser.role === 'medecin') {
-    // Médecin : shell dédié
+    // Médecin : shell dédié uniquement
     document.getElementById('topbar').style.display = 'none';
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('medecin-shell').style.display = 'flex';
     await loadDB();
     initMedecinShell();
 
   } else if (currentUser.role === 'patient') {
-    // Patient : shell dédié
+    // Patient : shell dédié uniquement
     document.getElementById('topbar').style.display = 'none';
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('patient-shell').style.display = 'flex';
     await initPatientShell();
   }
 }
@@ -3883,11 +3889,11 @@ function doLogout() {
   currentUser = null;
   portalPatient = null;
   patientData = null;
-  // Cacher les shells
-  document.getElementById('medecin-shell').classList.remove('active');
-  document.getElementById('patient-shell').classList.remove('active');
-  // Reset topbar
-  document.getElementById('topbar').style.display = '';
+  // Cacher TOUT
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('topbar').style.display = 'none';
+  document.getElementById('medecin-shell').style.display = 'none';
+  document.getElementById('patient-shell').style.display = 'none';
   document.getElementById('tb-user-badge').style.display = 'none';
   document.getElementById('tb-logout-btn').style.display = 'none';
   document.getElementById('login-error').classList.remove('show');
