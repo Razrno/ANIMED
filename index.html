@@ -1802,36 +1802,10 @@ async function sha256(str){
 }
 
 
-const STORE = 'animed_users_v2';
-const ADM_LOGIN = 'admin', ADM_PASS = 'admin123';
-let tabFilter = 'all', editMode = false;
-
-function loadUsers(){
-  try{return JSON.parse(localStorage.getItem(STORE))||seed();}catch{return seed();}
-}
-function saveUsers(u){ localStorage.setItem(STORE,JSON.stringify(u)); }
-function seed(){
-  const d = fmtDate(new Date());
-  return [
-    {id:uid(),name:'Marie Dupont',login:'PAT-0001',pass:'patient1',role:'patient',active:true,createdAt:d},
-    {id:uid(),name:'Pierre Martin',login:'PAT-0002',pass:'patient2',role:'patient',active:true,createdAt:d},
-    {id:uid(),name:'Dr. Sophie Bernard',login:'dr.bernard',pass:'pro123',role:'pro',active:true,createdAt:d},
-    {id:uid(),name:'Dr. Karim Aït',login:'dr.ait',pass:'pro456',role:'pro',active:false,createdAt:d}
-  ];
-}
-function uid(){ return Math.random().toString(36).slice(2,10).toUpperCase(); }
-function fmtDate(d){ return d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'}); }
-
 // ── NAVIGATION ──
 function goTo(type){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById('screen-'+type).classList.add('active');
-  if(type==='admin-dash'){
-    document.getElementById('main-logo').style.display='none';
-    document.body.style.justifyContent='flex-start';
-    document.body.style.paddingTop='28px';
-    updateStats(); renderTable();
-  }
 }
 function goBack(){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
@@ -1851,42 +1825,34 @@ function doLogin(type){
   if(!lv||!pv){showErr(eId,'Veuillez remplir tous les champs.');shake(document.querySelector('#screen-'+(type==='admin'?'admin-login':type)+' .form-card'));return;}
   const btn=document.getElementById(bId); btn.classList.add('loading');
   document.getElementById(eId).classList.remove('show');
-  setTimeout(()=>{
+  const screenSel='#screen-'+(type==='admin'?'admin-login':type)+' .form-card';
+  sha256(pv).then(hash=>{
     btn.classList.remove('loading');
-    if(type==='admin'){
-      sha256(pv).then(hash=>{
-        btn.classList.remove('loading');
-        supa.query('GET','users',null,'username=eq.'+encodeURIComponent(lv))
-        .then(rows=>{
-          if(!rows||!rows.length){showErr(eId,'Identifiant introuvable.');shake(document.querySelector('#screen-admin-login .form-card'));return;}
-          const u=rows[0];
-          if(u.password_hash!==hash){showErr(eId,'Mot de passe incorrect.');shake(document.querySelector('#screen-admin-login .form-card'));return;}
-          // Tous les rôles sont acceptés
-                    // ✅ Connexion réussie — dispatcher selon le rôle
-          currentUser = {username:u.username, role:u.role, displayName:u.display_name||u.username, patientId:u.patient_id||null};
-          showSuccess(u.role==='admin'?'admin':u.role==='medecin'?'pro':'patient');
-          setTimeout(()=>{
-            document.getElementById('login-portal').style.display='none';
-            if(u.role==='admin')        showAdminShell(u);
-            else if(u.role==='medecin') showMedecinShell(u);
-            else                         showPatientShell(u);
-          },1800);
-        }).catch(e=>{showErr(eId,'Erreur connexion : '+e.message);});
-      }).catch(e=>{btn.classList.remove('loading');showErr(eId,'Erreur : '+e.message);});
-      return;
-    }
-    const users=loadUsers();
-    const user=users.find(u=>u.login===lv&&u.pass===pv&&u.role===type);
-    if(!user){showErr(eId,'Identifiants incorrects ou compte introuvable.');shake(document.querySelector('#screen-'+type+' .form-card'));return;}
-    if(!user.active){showErr(eId,'Compte désactivé. Contactez l\'administrateur.');return;}
-    showSuccess(type,user.name);
-    if(type==='pro') setTimeout(()=>{window.location.href='index.html';},2800);
-  },1400);
+    supa.query('GET','users',null,'username=eq.'+encodeURIComponent(lv))
+    .then(rows=>{
+      if(!rows||!rows.length){showErr(eId,'Identifiant introuvable.');shake(document.querySelector(screenSel));return;}
+      const u=rows[0];
+      if(u.password_hash!==hash){showErr(eId,'Mot de passe incorrect.');shake(document.querySelector(screenSel));return;}
+      // Vérifier que le compte est actif
+      if(u.active===false){showErr(eId,'Compte désactivé. Contactez l\'administrateur.');return;}
+      // Vérifier que le rôle correspond au portail utilisé
+      const roleMap={patient:'patient',pro:'medecin',admin:'admin'};
+      if(u.role!==roleMap[type]){showErr(eId,'Ce compte n\'est pas autorisé pour cet accès.');shake(document.querySelector(screenSel));return;}
+      // ✅ Connexion réussie — dispatcher selon le rôle
+      currentUser={username:u.username,role:u.role,displayName:u.display_name||u.username,patientId:u.patient_id||null};
+      showSuccess(type,u.display_name||u.username);
+      setTimeout(()=>{
+        document.getElementById('login-portal').style.display='none';
+        if(u.role==='admin')        showAdminShell(u);
+        else if(u.role==='medecin') showMedecinShell(u);
+        else                        showPatientShell(u);
+      },1800);
+    }).catch(e=>{showErr(eId,'Erreur connexion : '+e.message);});
+  }).catch(e=>{btn.classList.remove('loading');showErr(eId,'Erreur : '+e.message);});
 }
-function loginDemo(type){showSuccess(type);}
-function showErr(id,msg){const e=document.getElementById(id);e.textContent=msg;e.classList.add('show');}
 
-// ── SUCCESS OVERLAY ──
+// ── UTILS ──
+function showErr(id,msg){const e=document.getElementById(id);e.textContent=msg;e.classList.add('show');}
 function showSuccess(type,name=''){
   const icons={patient:'🧑‍⚕️',pro:'👨‍💼',admin:'🛡️'};
   const titles={patient:'Bienvenue'+(name?' '+name.split(' ')[0]:''),pro:'Bienvenue'+(name?' '+name:''),admin:'Accès Admin'};
@@ -1902,118 +1868,6 @@ function showSuccess(type,name=''){
   if(type!=='admin') setTimeout(()=>document.getElementById('success-overlay').classList.remove('show'),2800);
   else setTimeout(()=>document.getElementById('success-overlay').classList.remove('show'),1800);
 }
-
-// ── ADMIN STATS ──
-function updateStats(){
-  const u=loadUsers();
-  document.getElementById('st-total').textContent=u.length;
-  document.getElementById('st-patients').textContent=u.filter(x=>x.role==='patient').length;
-  document.getElementById('st-pros').textContent=u.filter(x=>x.role==='pro').length;
-  document.getElementById('st-active').textContent=u.filter(x=>x.active).length;
-}
-
-// ── TABLE ──
-function setTab(t,el){
-  tabFilter=t;
-  document.querySelectorAll('.adm-tab').forEach(x=>x.classList.remove('active'));
-  el.classList.add('active'); renderTable();
-}
-function renderTable(){
-  let users=loadUsers();
-  const q=document.getElementById('adm-search').value.toLowerCase();
-  if(tabFilter!=='all') users=users.filter(u=>u.role===tabFilter);
-  if(q) users=users.filter(u=>u.name.toLowerCase().includes(q)||u.login.toLowerCase().includes(q));
-  const tb=document.getElementById('user-tbody');
-  if(!users.length){tb.innerHTML='<tr><td colspan="6"><div class="no-rows">Aucun utilisateur trouvé.</div></td></tr>';return;}
-  tb.innerHTML=users.map(u=>{
-    const av=u.role==='patient'?'av-p':'av-pro';
-    const rb=u.role==='patient'?'rb-p':'rb-pro';
-    const rl=u.role==='patient'?'Patient':'Professionnel';
-    const ini=u.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
-    return `<tr>
-      <td><div class="u-cell"><div class="u-av ${av}">${ini}</div><div><div class="u-name">${u.name}</div><div class="u-id">ID: ${u.id}</div></div></div></td>
-      <td style="font-family:var(--mono);font-size:12px;color:var(--t2)">${u.login}</td>
-      <td><span class="role-badge ${rb}">${rl}</span></td>
-      <td><span class="status-pill ${u.active?'sp-on':'sp-off'}"><span class="sp-dot"></span>${u.active?'Actif':'Inactif'}</span></td>
-      <td style="font-family:var(--mono);font-size:11px;color:var(--t3)">${u.createdAt}</td>
-      <td><div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="act-btn" onclick="openEdit('${u.id}')">✏️ Modifier</button>
-        <button class="act-btn ${u.active?'':'on'}" onclick="toggleActive('${u.id}')">${u.active?'⏸ Désactiver':'▶ Activer'}</button>
-        <button class="act-btn del" onclick="askDelete('${u.id}','${u.name.replace(/'/g,"\\'")}')">🗑</button>
-      </div></td>
-    </tr>`;
-  }).join('');
-}
-
-// ── CREATE / EDIT ──
-function openCreate(){
-  editMode=false;
-  document.getElementById('m-title').textContent='Nouveau compte';
-  document.getElementById('m-sub').textContent='Remplissez les informations du nouvel utilisateur';
-  document.getElementById('m-pass-label').textContent='Mot de passe';
-  document.getElementById('m-confirm-btn').textContent='Créer le compte';
-  document.getElementById('m-uid').value='';
-  ['m-name','m-login','m-pass'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('m-role').value='patient';
-  document.getElementById('modal-user').classList.add('open');
-}
-function openEdit(id){
-  editMode=true;
-  const u=loadUsers().find(x=>x.id===id); if(!u) return;
-  document.getElementById('m-title').textContent='Modifier le compte';
-  document.getElementById('m-sub').textContent='Modifiez les informations de l\'utilisateur';
-  document.getElementById('m-pass-label').textContent='Nouveau mot de passe (vide = inchangé)';
-  document.getElementById('m-confirm-btn').textContent='Sauvegarder';
-  document.getElementById('m-confirm-btn').className='btn-s btn-ok-save';
-  document.getElementById('m-uid').value=id;
-  document.getElementById('m-name').value=u.name;
-  document.getElementById('m-login').value=u.login;
-  document.getElementById('m-pass').value='';
-  document.getElementById('m-role').value=u.role;
-  document.getElementById('modal-user').classList.add('open');
-}
-function saveUser(){
-  const id=document.getElementById('m-uid').value;
-  const name=document.getElementById('m-name').value.trim();
-  const login=document.getElementById('m-login').value.trim();
-  const pass=document.getElementById('m-pass').value.trim();
-  const role=document.getElementById('m-role').value;
-  if(!name||!login){toast('Nom et identifiant requis','err');return;}
-  if(!editMode&&!pass){toast('Mot de passe requis','err');return;}
-  const users=loadUsers();
-  if(editMode){
-    const idx=users.findIndex(u=>u.id===id); if(idx<0) return;
-    if(users.find(u=>u.login===login&&u.id!==id)){toast('Identifiant déjà utilisé','err');return;}
-    users[idx].name=name; users[idx].login=login; users[idx].role=role;
-    if(pass) users[idx].pass=pass;
-    saveUsers(users); updateStats(); renderTable();
-    closeModal('modal-user'); toast('Compte mis à jour : '+name,'ok');
-  } else {
-    if(users.find(u=>u.login===login)){toast('Identifiant déjà utilisé','err');return;}
-    users.push({id:uid(),name,login,pass,role,active:true,createdAt:fmtDate(new Date())});
-    saveUsers(users); updateStats(); renderTable();
-    closeModal('modal-user'); toast('Compte créé : '+name,'ok');
-  }
-  // reset btn style
-  document.getElementById('m-confirm-btn').className='btn-s btn-ok-blue';
-}
-function toggleActive(id){
-  const users=loadUsers();
-  const u=users.find(x=>x.id===id); if(!u) return;
-  u.active=!u.active; saveUsers(users); updateStats(); renderTable();
-  toast(u.name+' — '+(u.active?'Activé':'Désactivé'),u.active?'ok':'');
-}
-function askDelete(id,name){
-  document.getElementById('cof-msg').textContent='Supprimer le compte de "'+name+'" ? Cette action est irréversible.';
-  document.getElementById('confirm-del').classList.add('open');
-  document.getElementById('del-confirm-btn').onclick=()=>{
-    saveUsers(loadUsers().filter(u=>u.id!==id));
-    updateStats(); renderTable(); closeModal('confirm-del'); toast('Compte supprimé','ok');
-  };
-}
-function closeModal(id){ document.getElementById(id).classList.remove('open'); }
-
-// ── UTILS ──
 function togglePass(id,btn){
   const i=document.getElementById(id);
   i.type=i.type==='password'?'text':'password';
@@ -2044,8 +1898,6 @@ document.querySelectorAll('.modal-overlay,.confirm-overlay').forEach(m=>{
   m.addEventListener('click',e=>{if(e.target===m) m.classList.remove('open');});
 });
 
-// ── INIT ──
-if(!localStorage.getItem(STORE)) saveUsers(seed());
 
 </script>
 
@@ -2206,9 +2058,10 @@ function admRenderTable() {
       <td style="font-family:var(--mono);font-size:12px;color:var(--t2)">${u.username}</td>
       <td><span class="role-badge ${rbCls[u.role]||'rb-patient'}">${icons[u.role]||''} ${rlbl[u.role]||u.role}</span></td>
       <td style="font-family:var(--mono);font-size:11px;color:var(--t3)">${u.patient_id||'—'}</td>
-      <td><span class="status-pill sp-on"><span class="sp-dot"></span>Actif</span></td>
+      <td><span class="status-pill ${u.active===false?'sp-off':'sp-on'}"><span class="sp-dot"></span>${u.active===false?'Inactif':'Actif'}</span></td>
       <td><div style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="act-btn" onclick="admOpenEdit('${u.id}')">✏️ Modifier</button>
+        <button class="act-btn ${u.active===false?'on':''}" onclick="admToggleActive('${u.id}','${(u.display_name||u.username).replace(/'/g,"\\'")}',${u.active===false})">${u.active===false?'▶ Activer':'⏸ Désactiver'}</button>
         ${!isSelf?`<button class="act-btn del" onclick="admDeleteUser('${u.id}','${(u.display_name||u.username).replace(/'/g,"\\'")}')">🗑 Supprimer</button>`:''}
       </div></td>
     </tr>`;
@@ -2275,10 +2128,20 @@ async function admSaveUser() {
     } else {
       if (!password) { toast('Mot de passe requis','err'); return; }
       row.id = crypto.randomUUID();
+      row.active = true;
       await supa.upsert('users', row);
       toast(`Compte @${username} créé !`,'ok');
     }
     admCloseModal();
+    await admLoadAccounts();
+  } catch(e) { toast('Erreur : '+e.message,'err'); }
+}
+
+async function admToggleActive(uid, name, currentlyInactive) {
+  const newActive = currentlyInactive; // on inverse
+  try {
+    await supa.query('PATCH','users',{ active: newActive, updated_at: new Date().toISOString() },`id=eq.${uid}`);
+    toast(`${name} — ${newActive ? 'Activé ✅' : 'Désactivé ⏸'}`, newActive ? 'ok' : '');
     await admLoadAccounts();
   } catch(e) { toast('Erreur : '+e.message,'err'); }
 }
